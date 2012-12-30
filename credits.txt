@@ -1,0 +1,91 @@
+﻿DO NOT REDISTRIBUTE ANY OF THESE FILES.  ALWAYS OBTAIN THE LATEST VERSIONS FROM THE WIKI. (allcaps is boss)
+
+Painted Image Automation
+EXPERIMENTAL
+Version 0006
+
+TOOLS:
+automateCaptureImages.ahk - Created by nVis.
+automateCaptureImages_slow.ahk - A slower version of the automateCaptureImages script - might be necessary for attached items.
+credits.txt - This right here.
+renameImagesEasyUpload.bat - Created by RJackson.
+renameImagesWikiNames.bat - More advanced bat, useful for bot uploads; the other is simpler for manual uploads. Created by i-ghost.
+upload.py - For automated uploads, uses wikiConf.py as a config; use in conjunction with renameImagesWikiNames.bat. Created by i-ghost.
+modified wikitools, etc - Supplied by WindPower.
+
+OBSOLETE:
+fixVMT.py - Created by RJackson, WindPower's work used as reference.
+hlmv-tf2.bat - Created by i-ghost.
+
+CHANGELOG:
+0008:
+	Added ability to specify an additional VMT pair.
+	
+| automateCaptureImages.ahk
+| credits.txt
+
+0007:
+	Fixed "A Mann's Mint" using incorrect paint value.
+
+| automateCaptureNewMintyImages.ahk
+| automateCaptureImages.ahk
+| automateCaptureImages_slow.ahk
+| credits.txt
+
+0006:
+	Added new script variants to only take new paint/unpainted variants
+	Updated both automation scripts to include new mint paints and an unpainted variant.
+	Updated renamer scripts to include new paints and unpainted variant.
+	
++ automateCaptureNewMintyImages.ahk
++ renameImagesMintyImages.bat
+| automateCaptureImages.ahk
+| automateCaptureImages_slow.ahk
+| renameImagesEasyUpload.bat
+| renameImagesWikiNames.bat
+| credits.txt
+
+0005:
+	Updated upload.py
+	
+|	upload.py
+|	credits.txt
+
+0004:
+	Adjusted both automation scripts to remove the "ready to do BLU paints" message, was unnecessary.
+	Added a python upload script (upload.py) to use with renameImagesWikiNames.bat.
+		Included modified wikitools.
+	Marked fixVMT.py as obsolete, is quicker and easier in terms of workflow to just add the "$color2" string yourself.
+	Marked hlmv-tf2.bat as obsolete, the SDK now uses the correct shaders by default.
+
++	upload.py
++	wikiConf.py
++	wikitools, etc
+|	automateCaptureImages.ahk
+|	automateCaptureImages_slow.ahk
+|	credits.txt
+
+0003:
+	Adjusted fixVMT.py.  $color2 didn't need a \n prefix, prefixing $colortint_base with \t to keep the VMT's indentation clean.
+	Added a slow version of automateCaptureImages.  This one should be slow enough to be used if the images are being taken on-class - for example, Coupe D'isaster.
+	
++	automateCaptureImages_slow.ahk
+|	fixVMT.py
+|	credits.txt
+
+0002:
+	Replaced renameImages with two variants, one renaming for easy manual uploading; the other renaming to the Wiki-used names.
+	
+-	renameImages.bat
++	renameImagesEasyUpload.bat
++	renameImagesWikiNames
+|	credits.txt
+
+0001:
+	Initial version.
+	
++	automateCaptureImages.ahk
++	fixVMT.py
++	hlmv-tf2.bat
++	renameImages.bat
+
