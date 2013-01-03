@@ -29,7 +29,6 @@ class RootFrame(tk.Frame):
             # Paints
             for paint in config.items("Paints"):
                 self.paints[paint[0]] = paint[1]
-            assert len(self.paints) > 0
             # User/Pass
             for i in config.items("User"):
                 self.config[i[0]] = i[1]
@@ -46,7 +45,7 @@ class RootFrame(tk.Frame):
         self.pack(fill=tk.BOTH, expand=1)
         
         # geometry
-        width = 530
+        width = 580
         height = 350
         # center window
         screen_width = self.parent.winfo_screenwidth()
@@ -69,27 +68,49 @@ class RootFrame(tk.Frame):
                 in_wiki_user.config(state=tk.DISABLED)
                 in_wiki_pass.config(state=tk.DISABLED)
         
+        
+        # Text labels
+        lbl_settings = tk.Label(left_frame, text="Settings")
+        lbl_settings.grid(sticky=tk.W, padx=10)
+        
+        lbl_item = tk.Label(left_frame, text="Item name:")
+        lbl_item.grid(row=1, sticky=tk.W)
+        
+        lbl_style = tk.Label(left_frame, text="Style:")
+        lbl_style.grid(row=2, sticky=tk.W)
+        
         # Checkbox
         self.int_upload_var = tk.IntVar()
         cb_upload_wiki = tk.Checkbutton(left_frame, text="Upload to Wiki", variable=self.int_upload_var, command=on_cb_click)
-        cb_upload_wiki.grid(row=0, sticky=tk.W, pady=10, columnspan=2)
+        cb_upload_wiki.grid(row=4, sticky=tk.W, pady=10)
         
-        # Text labels
+        # Wiki labels
         lbl_wiki_user = tk.Label(left_frame, text="Username:")
-        lbl_wiki_user.grid(row=1, sticky=tk.W)
+        lbl_wiki_user.grid(row=5, sticky=tk.W)
         
         lbl_wiki_pass = tk.Label(left_frame, text="Password:")
-        lbl_wiki_pass.grid(row=2, sticky=tk.W, pady=5)
+        lbl_wiki_pass.grid(row=6, sticky=tk.W, pady=5)
+        
         
         # Text input
+        
+        # Settings
+        in_item = tk.Entry(left_frame)
+        in_item.grid(row=1, column=1)
+        
+        in_style = tk.Entry(left_frame)
+        in_style.grid(row=2, column=1)
+        
+        # Wiki
         in_wiki_user = tk.Entry(left_frame)
-        in_wiki_user.insert(0, "Username")
+        in_wiki_user.insert(0, self.config["username"])
         in_wiki_user.config(state=tk.DISABLED)
-        in_wiki_user.grid(row=1, column=1)
+        in_wiki_user.grid(row=5, column=1)
         
         in_wiki_pass = tk.Entry(left_frame, show="*")
         in_wiki_pass.config(state=tk.DISABLED)
-        in_wiki_pass.grid(row=2, column=1)
+        in_wiki_pass.grid(row=6, column=1)
+        
 
     def init_right_frame(self):
         right_frame = tk.Frame(self)#, background="purple")
@@ -98,37 +119,65 @@ class RootFrame(tk.Frame):
         self.str_paintname_var = tk.StringVar()   
         
         def on_paint_select(val):
+            """Update tk string variables on listbox select"""
             w = val.widget
             v = w.get(w.curselection()[0])
             self.str_paints_var.set(v.split(":")[0].strip())
             self.str_paintname_var.set(" ".join(v.split(":")[1:]))
             
         def on_paint_edit():
+            """Open a color picker and return hex value"""
             color = "#%s" % (self.str_paints_var.get())
+            if color == "#":
+                color = "white"
             (rgb, hex) = tkColor.askcolor(color)
+            self.str_paints_var.set(hex.lstrip("#"))
             
-        def on_paint_save():
-            pass
+        def on_paint_add():
+            """Add the paint to the listbox and update paint dictionary"""
+            if self.str_paintname_var.get() in self.paints or self.str_paintname_var.get() == "" or self.paints_var.get() == "":
+                # Don't add if already exists or inputs are empty
+                return
+            self.paints[self.str_paintname_var.get()] = self.str_paints_var.get()
+            self.lst_paints.insert(tk.END, "%s : %s" % (self.str_paints_var.get(), self.str_paintname_var.get()))
+            self.str_paintname_var.set("")
+            print self.paints
             # Update config file here
+            
+        def on_paint_delete():
+            """Remove paint from the listbox and update paint dictionary"""
+            self.lst_paints.delete(tk.ANCHOR)
+            try:
+                del self.paints[self.lst_paints.get(tk.ANCHOR)]
+            except:
+                pass
+            print self.paints
+            
+        def on_save():
+            """Update configuration file"""
+            config_save = SafeConfigParser()
+            config_save.add_section("Paints")
+            for paint in self.paints:
+                config_save.set
         
         # Paint label
         lbl_paints = tk.Label(right_frame, text="Paints")
-        lbl_paints.grid(padx=10)
+        lbl_paints.grid(padx=10, sticky=tk.W)
                 
         # Scrollbar
         scrl_paints = tk.Scrollbar(right_frame, relief=tk.SUNKEN)
         scrl_paints.grid(column=2, sticky=tk.N+tk.S)
         
         # Paint list        
-        lst_paints = tk.Listbox(right_frame, selectmode=tk.SINGLE, activestyle=tk.DOTBOX, width=45, yscrollcommand=scrl_paints.set)
-        lst_paints.grid(row=1, padx=5, pady=5, columnspan=2)
+        self.lst_paints = tk.Listbox(right_frame, selectmode=tk.SINGLE, activestyle=tk.DOTBOX, width=45, yscrollcommand=scrl_paints.set)
+        self.lst_paints.grid(row=1, padx=5, pady=5, columnspan=2)
         
-        scrl_paints["command"] = lst_paints.yview
+        scrl_paints["command"] = self.lst_paints.yview
         
-        lst_paints.bind("<<ListboxSelect>>", on_paint_select)
+        self.lst_paints.bind("<<ListboxSelect>>", on_paint_select)
         
         for paint in self.paints:
-            lst_paints.insert(tk.END, "%s : %s" % (self.paints[paint], paint))
+            self.lst_paints.insert(tk.END, "%s : %s" % (self.paints[paint], paint))
         
         # Paint editing interface
         # Paint name
@@ -136,12 +185,19 @@ class RootFrame(tk.Frame):
         in_paintname_edit.grid(row=2, columnspan=2, sticky=tk.W+tk.E)
         
         # Color picker
-        btn_paint_edit = tk.Button(right_frame, text="Edit color", command=on_paint_edit)
-        btn_paint_edit.grid(row=3, column=0, sticky=tk.W+tk.E)
+        btn_paint_edit = tk.Button(right_frame, text="Pick color", command=on_paint_edit)
+        btn_paint_edit.grid(row=3, column=0, sticky=tk.W+tk.E, columnspan=2)
         
-        # Commit changes
-        btn_paint_save = tk.Button(right_frame, text="Save changes", command=on_paint_save)
-        btn_paint_save.grid(row=3, column=1, sticky=tk.W+tk.E)
+        # Add color
+        btn_paint_add = tk.Button(right_frame, text="Add paint", command=on_paint_add)
+        btn_paint_add.grid(row=4, column=0, sticky=tk.W+tk.E)
+        
+        # Delete color
+        btn_paint_save = tk.Button(right_frame, text="Delete paint", command=on_paint_delete)
+        btn_paint_save.grid(row=4, column=1, sticky=tk.W+tk.E)
+        
+        # Color preview
+        
         
         
 def main():
