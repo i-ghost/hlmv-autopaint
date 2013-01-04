@@ -14,6 +14,22 @@ class RootFrame(tk.Frame):
         self.init_config()
         self.init_left_frame()
         self.init_right_frame()
+        self.parent.protocol("WM_DELETE_WINDOW", self.on_delete)
+
+    def on_delete(self):
+        """Update configuration file on exit"""
+        config_save = ConfigParser()
+        try:
+            config_save.add_section("User")
+            config_save.add_section("Paints")
+        except ConfigParser.DuplicateSectionError:
+            pass
+        for paint in sorted(self.paints):
+            config_save.set("Paints", paint, self.paints[paint])
+        config_save.set("User", "username", self.config["username"])
+        with open("config.cfg", "wt") as config_file:
+            config_save.write(config_file)
+        self.parent.destroy()
         
     def reset_config(self):
         pass
@@ -118,48 +134,51 @@ class RootFrame(tk.Frame):
         self.str_paints_var = tk.StringVar()
         self.str_paintname_var = tk.StringVar()   
         
+        def _assert():
+            assert self.lst_paints.size() == len(self.paints)
+
         def on_paint_select(val):
             """Update tk string variables on listbox select"""
             w = val.widget
             v = w.get(w.curselection()[0])
-            self.str_paints_var.set(v.split(":")[0].strip())
-            self.str_paintname_var.set(" ".join(v.split(":")[1:]))
-            
+            self.str_paints_var.set(v.split()[0].strip())
+            self.str_paintname_var.set(" ".join(v.split()[1:]))
+
         def on_paint_edit():
             """Open a color picker and return hex value"""
             color = "#%s" % (self.str_paints_var.get())
             if color == "#":
                 color = "white"
             (rgb, hex) = tkColor.askcolor(color)
-            self.str_paints_var.set(hex.lstrip("#"))
+            # Returns None on cancel
+            if hex is not None:
+                self.str_paints_var.set(hex.lstrip("#"))
+            print self.paints
+            _assert()
             
         def on_paint_add():
             """Add the paint to the listbox and update paint dictionary"""
-            if self.str_paintname_var.get() in self.paints or self.str_paintname_var.get() == "" or self.paints_var.get() == "":
+            if self.str_paintname_var.get() in self.paints or self.str_paintname_var.get() == "" or self.str_paints_var.get() == "":
                 # Don't add if already exists or inputs are empty
                 return
-            self.paints[self.str_paintname_var.get()] = self.str_paints_var.get()
-            self.lst_paints.insert(tk.END, "%s : %s" % (self.str_paints_var.get(), self.str_paintname_var.get()))
+            paintname = " ".join(self.str_paintname_var.get().split())
+            self.paints[paintname] = self.str_paints_var.get()
+            self.lst_paints.insert(tk.END, "%s %s" % (self.str_paints_var.get(), paintname))
             self.str_paintname_var.set("")
             print self.paints
-            # Update config file here
+            _assert()
             
         def on_paint_delete():
             """Remove paint from the listbox and update paint dictionary"""
-            self.lst_paints.delete(tk.ANCHOR)
+            paintname = " ".join(self.lst_paints.get(tk.ANCHOR).split(" ", 1)[1:])
+            print("Selection: %s" % (paintname))
             try:
-                del self.paints[self.lst_paints.get(tk.ANCHOR)]
-            except:
+                del self.paints[paintname]
+                self.lst_paints.delete(tk.ANCHOR)
+            except KeyError:
                 pass
-            print self.paints
-            
-        def on_save():
-            """Update configuration file"""
-            config_save = SafeConfigParser()
-            config_save.add_section("Paints")
-            for paint in self.paints:
-                config_save.set
-        
+                # Log this in the future
+
         # Paint label
         lbl_paints = tk.Label(right_frame, text="Paints")
         lbl_paints.grid(padx=10, sticky=tk.W)
@@ -176,8 +195,8 @@ class RootFrame(tk.Frame):
         
         self.lst_paints.bind("<<ListboxSelect>>", on_paint_select)
         
-        for paint in self.paints:
-            self.lst_paints.insert(tk.END, "%s : %s" % (self.paints[paint], paint))
+        for paint in sorted(self.paints):
+            self.lst_paints.insert(tk.END, "%s %s" % (self.paints[paint], paint))
         
         # Paint editing interface
         # Paint name
