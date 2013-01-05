@@ -116,6 +116,7 @@ class RootFrame(tk.Frame):
             config_save.add_section("BLU paints")
         except ConfigParser.DuplicateSectionError:
             pass
+        # TODO: iterate over new listbox classes and split returned strings
         # RED paints
         for paint in sorted(self.blu_paints):
             config_save.set("BLU paints", paint, self.blu_paints[paint])
