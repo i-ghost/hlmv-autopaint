@@ -8,6 +8,93 @@ import tkFileDialog
 from ConfigParser import SafeConfigParser
 
 
+class PaintSelector(object):
+    """An iterable listbox with scrollbar and three buttons to control it"""
+    def __init__(self, frame, paints, title="Paints", columnn_offset=0, row_offset=0):
+        self.frame = frame
+        self.column_offset = columnn_offset
+        self.row_offset = row_offset
+        self.paints = paints
+        self.str_paint_var = tk.StringVar()
+        self.str_paintname_var = tk.StringVar()
+        
+        def __iter__(self):
+            for i in self.lst_paints.get(0, tk.END):
+                yield i
+
+        def on_paint_select(val):
+            """Update tk string variables on listbox select"""
+            w = val.widget
+            v = w.get(w.curselection()[0])
+            self.str_paint_var.set(v.split()[0].strip())
+            self.str_paintname_var.set(" ".join(v.split()[1:]))
+
+        def on_paint_edit():
+            """Open a color picker and return hex value"""
+            color = "#%s" % (self.str_paint_var.get())
+            if color == "#":
+                color = "white"
+            (rgb, hex) = tkColorChooser.askcolor(color)
+            # Returns None on cancel
+            if hex is not None:
+                self.str_paint_var.set(hex.lstrip("#"))
+            
+        def on_paint_add():
+            """Add the paint to the listbox"""
+            if "%s %s" % (self.str_paint_var.get(), self.str_paintname_var.get()) in self.lst_paints.get(0, tk.END) \
+            or self.str_paintname_var.get() == "" or self.str_paint_var.get() == "":
+                # Don't add if already exists or inputs are empty
+                return
+            paintname = " ".join(self.str_paintname_var.get().split())
+            self.lst_paints.insert(tk.END, "%s %s" % (self.str_paint_var.get(), paintname))
+            self.str_paintname_var.set("")
+            
+        def on_paint_delete():
+            """Remove paint from the listbox"""
+            paintname = " ".join(self.lst_paints.get(tk.ANCHOR).split(" ", 1)[1:])
+            try:
+                self.lst_paints.delete(tk.ANCHOR)
+            except Exception:
+                pass
+                # Log this in the future
+
+        # Paint label
+        lbl_paints = tk.Label(self.frame, text="RED paints")
+        lbl_paints.grid(padx=10, sticky=tk.W)
+                
+        # Scrollbar
+        scrl_paints = tk.Scrollbar(self.frame, relief=tk.SUNKEN)
+        scrl_paints.grid(column=self.column_offset+2, sticky=tk.N+tk.S)
+        
+        # Paint list        
+        self.lst_paints = tk.Listbox(self.frame, selectmode=tk.SINGLE, activestyle=tk.DOTBOX, width=45, yscrollcommand=scrl_paints.set)
+        self.lst_paints.grid(row=self.row_offset+1, padx=5, pady=5, columnspan=2)
+        
+        scrl_paints["command"] = self.lst_paints.yview
+        
+        self.lst_paints.bind("<<ListboxSelect>>", on_paint_select)
+        
+        for paint in sorted(self.paints):
+            self.lst_paints.insert(tk.END, "%s %s" % (self.paints[paint], paint))
+        
+        # Paint editing interface
+        # Paint name
+        in_paintname_edit = tk.Entry(self.frame, textvariable=self.str_paintname_var)
+        in_paintname_edit.grid(row=self.row_offset+2, columnspan=2, sticky=tk.W+tk.E)
+        
+        # Color picker
+        btn_paint_edit = tk.Button(self.frame, text="Pick color", command=on_paint_edit)
+        btn_paint_edit.grid(row=self.row_offset+3, column=self.column_offset+0, sticky=tk.W+tk.E, columnspan=2)
+        
+        # Add color
+        btn_paint_add = tk.Button(self.frame, text="Add paint", command=on_paint_add)
+        btn_paint_add.grid(row=self.row_offset+4, column=self.column_offset+0, sticky=tk.W+tk.E)
+        
+        # Delete color
+        btn_paint_save = tk.Button(self.frame, text="Delete paint", command=on_paint_delete)
+        btn_paint_save.grid(row=self.row_offset+4, column=self.column_offset+1, sticky=tk.W+tk.E)
+
+
 class RootFrame(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
@@ -16,7 +103,7 @@ class RootFrame(tk.Frame):
         self.init_config()
         self.init_left_frame()
         self.init_middle_frame()
-        self.init_right_frame()
+        # self.init_right_frame()
         self.parent.protocol("WM_DELETE_WINDOW", self.on_delete)
 
     def on_delete(self):
@@ -169,161 +256,8 @@ class RootFrame(tk.Frame):
         """Create the middle frame"""
         middle_frame = tk.Frame(self)#, background="purple")
         middle_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True, padx=10, pady=10)
-        self.str_paints_var = tk.StringVar()
-        self.str_paintname_var = tk.StringVar()   
-
-        def on_paint_select(val):
-            """Update tk string variables on listbox select"""
-            w = val.widget
-            v = w.get(w.curselection()[0])
-            self.str_paints_var.set(v.split()[0].strip())
-            self.str_paintname_var.set(" ".join(v.split()[1:]))
-
-        def on_paint_edit():
-            """Open a color picker and return hex value"""
-            color = "#%s" % (self.str_paints_var.get())
-            if color == "#":
-                color = "white"
-            (rgb, hex) = tkColorChooser.askcolor(color)
-            # Returns None on cancel
-            if hex is not None:
-                self.str_paints_var.set(hex.lstrip("#"))
-            
-        def on_paint_add():
-            """Add the paint to the listbox and update paint dictionary"""
-            if self.str_paintname_var.get() in self.paints or self.str_paintname_var.get() == "" or self.str_paints_var.get() == "":
-                # Don't add if already exists or inputs are empty
-                return
-            paintname = " ".join(self.str_paintname_var.get().split())
-            self.paints[paintname] = self.str_paints_var.get()
-            self.lst_paints.insert(tk.END, "%s %s" % (self.str_paints_var.get(), paintname))
-            self.str_paintname_var.set("")
-            
-        def on_paint_delete():
-            """Remove paint from the listbox and update paint dictionary"""
-            paintname = " ".join(self.lst_paints.get(tk.ANCHOR).split(" ", 1)[1:])
-            try:
-                del self.paints[paintname]
-                self.lst_paints.delete(tk.ANCHOR)
-            except KeyError:
-                pass
-                # Log this in the future
-
-        # Paint label
-        lbl_paints = tk.Label(middle_frame, text="RED paints")
-        lbl_paints.grid(padx=10, sticky=tk.W)
-                
-        # Scrollbar
-        scrl_paints = tk.Scrollbar(middle_frame, relief=tk.SUNKEN)
-        scrl_paints.grid(column=2, sticky=tk.N+tk.S)
         
-        # Paint list        
-        self.lst_paints = tk.Listbox(middle_frame, selectmode=tk.SINGLE, activestyle=tk.DOTBOX, width=45, yscrollcommand=scrl_paints.set)
-        self.lst_paints.grid(row=1, padx=5, pady=5, columnspan=2)
-        
-        scrl_paints["command"] = self.lst_paints.yview
-        
-        self.lst_paints.bind("<<ListboxSelect>>", on_paint_select)
-        
-        for paint in sorted(self.paints):
-            self.lst_paints.insert(tk.END, "%s %s" % (self.paints[paint], paint))
-        
-        # Paint editing interface
-        # Paint name
-        in_paintname_edit = tk.Entry(middle_frame, textvariable=self.str_paintname_var)
-        in_paintname_edit.grid(row=2, columnspan=2, sticky=tk.W+tk.E)
-        
-        # Color picker
-        btn_paint_edit = tk.Button(middle_frame, text="Pick color", command=on_paint_edit)
-        btn_paint_edit.grid(row=3, column=0, sticky=tk.W+tk.E, columnspan=2)
-        
-        # Add color
-        btn_paint_add = tk.Button(middle_frame, text="Add paint", command=on_paint_add)
-        btn_paint_add.grid(row=4, column=0, sticky=tk.W+tk.E)
-        
-        # Delete color
-        btn_paint_save = tk.Button(middle_frame, text="Delete paint", command=on_paint_delete)
-        btn_paint_save.grid(row=4, column=1, sticky=tk.W+tk.E)
-        
-    def init_right_frame(self):
-        """Create the right frame"""
-        right_frame = tk.Frame(self)#, background="purple")
-        right_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True, padx=10, pady=10)
-        self.str_blu_paints_var = tk.StringVar()
-        self.str_blu_paintname_var = tk.StringVar()
-
-        def on_paint_select(val):
-            """Update tk string variables on listbox select"""
-            w = val.widget
-            v = w.get(w.curselection()[0])
-            self.str_blu_paints_var.set(v.split()[0].strip())
-            self.str_blu_paintname_var.set(" ".join(v.split()[1:]))
-
-        def on_paint_edit():
-            """Open a color picker and return hex value"""
-            color = "#%s" % (self.str_paints_var.get())
-            if color == "#":
-                color = "white"
-            (rgb, hex) = tkColorChooser.askcolor(color)
-            # Returns None on cancel
-            if hex is not None:
-                self.str_blu_paints_var.set(hex.lstrip("#"))
-            
-        def on_paint_add():
-            """Add the paint to the listbox and update paint dictionary"""
-            if self.str_blu_paintname_var.get() in self.blu_paints or self.str_blu_paintname_var.get() == "" or self.str_blu_paints_var.get() == "":
-                # Don't add if already exists or inputs are empty
-                return
-            paintname = " ".join(self.str_blu_paintname_var.get().split())
-            self.blu_paints[paintname] = self.str_blu_paints_var.get()
-            self.lst_blu_paints.insert(tk.END, "%s %s" % (self.str_blu_paints_var.get(), paintname))
-            self.str_blu_paintname_var.set("")
-            
-        def on_paint_delete():
-            """Remove paint from the blu listbox and update blu paint dictionary"""
-            paintname = " ".join(self.lst_blu_paints.get(tk.ANCHOR).split(" ", 1)[1:])
-            try:
-                del self.blu_paints[paintname]
-                self.lst_blu_paints.delete(tk.ANCHOR)
-            except KeyError:
-                pass
-                # Log this in the future
-
-        # Paint label
-        lbl_paints = tk.Label(right_frame, text="BLU paints")
-        lbl_paints.grid(padx=10, sticky=tk.W)
-                
-        # Scrollbar
-        scrl_paints = tk.Scrollbar(right_frame, relief=tk.SUNKEN)
-        scrl_paints.grid(column=2, sticky=tk.N+tk.S)
-        
-        # Paint list        
-        self.lst_blu_paints = tk.Listbox(right_frame, selectmode=tk.SINGLE, activestyle=tk.DOTBOX, width=45, yscrollcommand=scrl_paints.set)
-        self.lst_blu_paints.grid(row=1, padx=5, pady=5, columnspan=2)
-        
-        scrl_paints["command"] = self.lst_blu_paints.yview
-        
-        self.lst_blu_paints.bind("<<ListboxSelect>>", on_paint_select)
-        
-        for paint in sorted(self.blu_paints):
-            self.lst_blu_paints.insert(tk.END, "%s %s" % (self.blu_paints[paint], paint))
-        
-        # Paint editing interface
-        # Paint name
-        in_paintname_edit = tk.Entry(right_frame, textvariable=self.str_blu_paintname_var)
-        in_paintname_edit.grid(row=2, columnspan=2, sticky=tk.W+tk.E)
-        
-        # Color picker
-        btn_paint_edit = tk.Button(right_frame, text="Pick color", command=on_paint_edit)
-        btn_paint_edit.grid(row=3, column=0, sticky=tk.W+tk.E, columnspan=2)
-        
-        # Add color
-        btn_paint_add = tk.Button(right_frame, text="Add paint", command=on_paint_add)
-        btn_paint_add.grid(row=4, column=0, sticky=tk.W+tk.E)
-        
-        # Delete color
-        btn_paint_save = tk.Button(right_frame, text="Delete paint", command=on_paint_delete)
-        btn_paint_save.grid(row=4, column=1, sticky=tk.W+tk.E)
+        self.red_paint_list = PaintSelector(middle_frame, self.paints, title="Red paints")
         
         
         
