@@ -122,12 +122,12 @@ class RootFrame(tk.Frame):
         # BLU paints
         for paint in sorted(self.blu_paintselector):
             # paint.split()[slice] is not passed directly to set() method as it raises a TypeError. bug?
-            paint, paintname = paint.split()[0], paint.split()[1]
-            config_save.set("BLU paints", paint, paintname)
+            paint, paintname = paint.split()[0], " ".join(paint.split()[1:])
+            config_save.set("BLU paints", paintname, paint)
         # RED paints
         for paint in sorted(self.red_paintselector):
-            paint, paintname = paint.split()[0], paint.split()[1]
-            config_save.set("RED paints", paint, paintname)
+            paint, paintname = paint.split()[0], " ".join(paint.split()[1:])
+            config_save.set("RED paints", paintname, paint)
         config_save.set("User", "Username", self.in_wiki_user.get())
         config_save.set("User", "Upload", str(bool(self.int_upload_var.get())))
         with open("config.cfg", "wt") as config_file:
@@ -148,10 +148,10 @@ class RootFrame(tk.Frame):
             config.read(config_file)
             # RED paints
             for paint in config.items("RED paints"):
-                self.red_paintselector.insert(" ".join(paint))
+                self.red_paintselector.insert(" ".join(reversed(paint)))
             # BLU paints
             for paint in config.items("BLU paints"):
-                self.blu_paintselector.insert(" ".join(paint))
+                self.blu_paintselector.insert(" ".join(reversed(paint)))
             # User/Pass/Path
             for i in config.items("User"):
                 self.config[i[0]] = i[1]
