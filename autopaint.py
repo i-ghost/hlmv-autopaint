@@ -17,47 +17,50 @@ class PaintSelector(object):
         self.row_offset = row_offset
         self.str_paint_var = tk.StringVar()
         self.str_paintname_var = tk.StringVar()
+        self.init_widgets()
+        
+    def __iter__(self):
+        for i in self.listbox.get(0, tk.END):
+            yield i
 
+    def init_widgets(self):
         # Paint label
-        lbl_paints = tk.Label(self.frame, text=self.title)
-        lbl_paints.grid(padx=10, sticky=tk.W)
+        label = tk.Label(self.frame, text=self.title)
+        label.grid(padx=10, sticky=tk.W)
                 
         # Scrollbar
-        scrl_paints = tk.Scrollbar(self.frame, relief=tk.SUNKEN)
-        scrl_paints.grid(column=self.column_offset+2, sticky=tk.N+tk.S)
+        scrollbar = tk.Scrollbar(self.frame, relief=tk.SUNKEN)
+        scrollbar.grid(column=self.column_offset+2, sticky=tk.N+tk.S)
         
         # Paint list        
-        self.lst_paints = tk.Listbox(self.frame, selectmode=tk.SINGLE, activestyle=tk.DOTBOX, width=45, yscrollcommand=scrl_paints.set)
-        self.lst_paints.grid(row=self.row_offset+1, padx=5, pady=5, columnspan=2)
+        self.listbox = tk.Listbox(self.frame, selectmode=tk.SINGLE, activestyle=tk.DOTBOX, width=45, yscrollcommand=scrollbar.set)
+        self.listbox.grid(row=self.row_offset+1, padx=5, pady=5, columnspan=2)
         
-        scrl_paints["command"] = self.lst_paints.yview
+        scrollbar["command"] = self.listbox.yview
         
-        self.lst_paints.bind("<<ListboxSelect>>", self.on_paint_select)
+        self.listbox.bind("<<ListboxSelect>>", self.on_paint_select)
         
         
         # Paint editing interface
         # Paint name
-        in_paintname_edit = tk.Entry(self.frame, textvariable=self.str_paintname_var)
-        in_paintname_edit.grid(row=self.row_offset+2, columnspan=2, sticky=tk.W+tk.E)
+        paint_entry = tk.Entry(self.frame, textvariable=self.str_paintname_var)
+        paint_entry.grid(row=self.row_offset+2, columnspan=2, sticky=tk.W+tk.E)
         
         # Color picker
-        btn_paint_edit = tk.Button(self.frame, text="Pick color", command=self.on_paint_edit)
-        btn_paint_edit.grid(row=self.row_offset+3, column=self.column_offset+0, sticky=tk.W+tk.E, columnspan=2)
+        paint_edit = tk.Button(self.frame, text="Pick color", command=self.on_paint_edit)
+        paint_edit.grid(row=self.row_offset+3, column=self.column_offset+0, sticky=tk.W+tk.E, columnspan=2)
         
         # Add color
-        btn_paint_add = tk.Button(self.frame, text="Add paint", command=self.on_paint_add)
-        btn_paint_add.grid(row=self.row_offset+4, column=self.column_offset+0, sticky=tk.W+tk.E)
+        paint_add = tk.Button(self.frame, text="Add paint", command=self.on_paint_add)
+        paint_add.grid(row=self.row_offset+4, column=self.column_offset+0, sticky=tk.W+tk.E)
         
         # Delete color
-        btn_paint_save = tk.Button(self.frame, text="Delete paint", command=self.on_paint_delete)
-        btn_paint_save.grid(row=self.row_offset+4, column=self.column_offset+1, sticky=tk.W+tk.E)
+        paint_save = tk.Button(self.frame, text="Delete paint", command=self.on_paint_delete)
+        paint_save.grid(row=self.row_offset+4, column=self.column_offset+1, sticky=tk.W+tk.E)
 
-    def __iter__(self):
-        for i in self.lst_paints.get(0, tk.END):
-            yield i
 
     def insert(self, i):
-            self.lst_paints.insert(tk.END, i)
+        self.listbox.insert(tk.END, i)
 
     def on_paint_select(self, val):
         """Update tk string variables on listbox select"""
@@ -78,19 +81,19 @@ class PaintSelector(object):
         
     def on_paint_add(self):
         """Add the paint to the listbox"""
-        if "%s %s" % (self.str_paint_var.get(), self.str_paintname_var.get()) in self.lst_paints.get(0, tk.END) \
+        if "%s %s" % (self.str_paint_var.get(), self.str_paintname_var.get()) in self.listbox.get(0, tk.END) \
         or self.str_paintname_var.get() == "" or self.str_paint_var.get() == "":
             # Don't add if already exists or inputs are empty
             return
         paintname = " ".join(self.str_paintname_var.get().split())
-        self.lst_paints.insert(tk.END, "%s %s" % (self.str_paint_var.get(), paintname))
+        self.listbox.insert(tk.END, "%s %s" % (self.str_paint_var.get(), paintname))
         self.str_paintname_var.set("")
         
     def on_paint_delete(self):
         """Remove paint from the listbox"""
-        paintname = " ".join(self.lst_paints.get(tk.ANCHOR).split(" ", 1)[1:])
+        paintname = " ".join(self.listbox.get(tk.ANCHOR).split(" ", 1)[1:])
         try:
-            self.lst_paints.delete(tk.ANCHOR)
+            self.listbox.delete(tk.ANCHOR)
         except Exception:
             pass
             # Log this in the future
@@ -146,11 +149,9 @@ class RootFrame(tk.Frame):
             # RED paints
             for paint in config.items("RED paints"):
                 self.red_paintselector.insert(" ".join(paint))
-                # self.red_paints[paint[0]] = paint[1]
             # BLU paints
             for paint in config.items("BLU paints"):
                 self.blu_paintselector.insert(" ".join(paint))
-                # self.blu_paints[paint[0]] = paint[1]
             # User/Pass/Path
             for i in config.items("User"):
                 self.config[i[0]] = i[1]
@@ -196,7 +197,7 @@ class RootFrame(tk.Frame):
         left_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=False, pady=10, padx=10)
         
         def on_cb_click():
-            if self.int_upload_var.get() == 1:
+            if self.int_upload_var.get():
                 self.in_wiki_user.config(state=tk.NORMAL)
                 self.in_wiki_pass.config(state=tk.NORMAL)
             else:
