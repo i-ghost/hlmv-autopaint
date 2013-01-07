@@ -34,10 +34,12 @@ class WindowSwitcher(object):
         self._handle = None
         self.parent = _user32.GetForegroundWindow()
         self.history = {}
+        self.last_window_text = None
         _user32.AllowSetForegroundWindow(os.getpid())
         
     def _add_to_history(self):
         window_text = self._get_window_text(self._handle)
+        self.last_window_text = window_text
         if window_text not in self.history:
             self.history[window_text] = ctypes.cast(self._handle, ctypes.c_void_p).value
             
@@ -82,11 +84,15 @@ class WindowSwitcher(object):
                 pass
         elif wildcard:
             self._find_window_wildcard(wildcard)
-        else:
+        elif class_name or window_name:
             self._find_window(class_name, window_name)
         if self._handle:
             self._set_foreground(force)
             self._add_to_history()
+            
+    def get_last_window_name(self):
+        if self.last_window_text:
+            return self.last_window_text
             
     def __exit__(self, type, value, traceback):
         """return foreground lock to initial state and return to initial window"""

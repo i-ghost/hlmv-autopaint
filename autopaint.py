@@ -5,8 +5,20 @@ import Tkinter as tk
 import tkMessageBox
 import tkColorChooser
 import tkFileDialog
+import ctypes
+import struct
+import windowswitcher
 from ConfigParser import SafeConfigParser
 
+def send_f5():
+    """Sends an F5 to the active window"""
+    ctypes.windll.user32.keybd_event(0x74, 0, 0, 0) # F5 down
+    ctypes.windll.user32.keybd_event(0x74, 0, 0x0002, 0) # F5 up
+
+def hex_to_rgb(i):
+    """Takes a hex value and returns a string containing RGB values"""
+    return " ".join(map(str,struct.unpack('BBB',i.decode('hex'))))    
+    
 
 class PaintSelector(object):
     """An iterable listbox with scrollbar and three buttons to control it"""
@@ -215,7 +227,19 @@ class RootFrame(tk.Frame):
             if file:
                 self.blu_vmt = file
                 print self.blu_vmt
-
+                
+        def on_start_automator():
+            pass
+            # switch to hlmv
+            # for each paint in red listbox, replace $color2 \
+            # in red vmt with rgb using hex_to_rgb()
+            # repeat with blu vmt
+            # call threaded blender
+            # done
+            # w = windowswitcher.WindowSwitcher()
+            # w.activate(wildcard=r".*?.mdl")
+            # send_f5()
+            # model = w.get_last_window_name()
 
         # Text labels
         lbl_settings = tk.Label(left_frame, text="Settings")
@@ -239,14 +263,6 @@ class RootFrame(tk.Frame):
         lbl_wiki_pass = tk.Label(left_frame, text="Password:")
         lbl_wiki_pass.grid(row=6, sticky=tk.W, pady=5)
         
-        # RED file select button
-        btn_file_select = tk.Button(left_frame, text="Select RED VMT", command=on_red_file_select)
-        btn_file_select.grid(row=7, pady=5)
-
-        # RED file select button
-        btn_file_select = tk.Button(left_frame, text="Select BLU VMT", command=on_blu_file_select)
-        btn_file_select.grid(row=7, column=1)
-        
         # Text input
         
         # Settings
@@ -262,6 +278,18 @@ class RootFrame(tk.Frame):
         
         self.in_wiki_pass = tk.Entry(left_frame, show="*")
         self.in_wiki_pass.grid(row=6, column=1)
+        
+        # RED file select button
+        btn_file_select = tk.Button(left_frame, text="Select RED VMT", command=on_red_file_select)
+        btn_file_select.grid(row=7, pady=5)
+
+        # RED file select button
+        btn_file_select = tk.Button(left_frame, text="Select BLU VMT", command=on_blu_file_select)
+        btn_file_select.grid(row=7, column=1)
+        
+        # Start button
+        btn_start = tk.Button(left_frame, text="Start", command=on_start_automator)
+        btn_start.grid(row=8, rowspan=2, columnspan=2, sticky=tk.W+tk.E)
         
 
     def init_middle_frame(self):
