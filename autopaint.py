@@ -7,6 +7,8 @@ import tkColorChooser
 import tkFileDialog
 import ctypes
 import struct
+import re
+import time
 import windowswitcher
 from ConfigParser import SafeConfigParser
 
@@ -228,8 +230,40 @@ class RootFrame(tk.Frame):
                 self.blu_vmt = file
                 print self.blu_vmt
                 
+        def write_vmt(f, color=None):
+            """Replace $color2 {# # #} inside vmt file with value of color, or use $colortint_base"""
+            with open(f, "rb") as vmt_file:
+                vmt = vmt_file.read()
+                color2_pattern = r'"?\$color2"?\s+"?\{(.[^\}]+)\}"?'
+                color2_regex = re.compile(color2_pattern, re.IGNORECASE)
+                color2_match = color2_regex.search(vmt)
+                #
+                base_pattern = r'"?\$colortint_base"?\s+"?\{(.[^\}]+)\}"?'
+                base_regex = re.compile(base_pattern, re.IGNORECASE)
+                base_match = base_regex.search(vmt)
+                if base_match and not color2_match:
+                    # Create a $color2 if it doesn't exist
+                    vmt = re.sub(base_pattern, '"$colortint_base" "{%s}"\n\t"$color2" "{%s}"' % (
+                                base_match.group(1),
+                                color or base_match.group(1)),
+                            vmt)
+                elif color2_match:
+                    vmt = re.sub(color2_pattern, '"$color2" "{%s}"' % (color or base_match.group(1)), vmt)
+            with open(f, "wb") as vmt_file:
+                vmt_file.write(vmt)
+                
         def on_start_automator():
-            pass
+            paints = [i.split()[0] for i in sorted(self.red_paintselector)]
+            with windowswitcher.WindowSwitcher() as w:
+                w.activate(wildcard=r".*?.mdl", max=True, force=True)
+                time.sleep(3)
+                # for paint in paints:
+                    # write_vmt(self.red_vmt, color=paint)
+                    # time.sleep(1)
+                    # send_f5()
+                    # time.sleep(1)
+            # write_vmt(self.red_vmt)
+            # pass
             # switch to hlmv
             # for each paint in red listbox, replace $color2 \
             # in red vmt with rgb using hex_to_rgb()

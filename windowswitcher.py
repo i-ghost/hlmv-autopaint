@@ -64,13 +64,15 @@ class WindowSwitcher(object):
         self._handle = None
         _user32.EnumWindows(EnumWindowsProc(self._window_enum_callback), ctypes.c_wchar_p(wildcard))
 
-    def _set_foreground(self, force):
+    def _set_foreground(self, force, max):
         """Brings a given window to the foreground"""
         if force:
             _user32.ShowWindow(self._handle, 9)
         _user32.SetForegroundWindow(self._handle)
+        if max:
+            _user32.ShowWindow(self._handle, 3)
         
-    def activate(self, name = None, class_name = None, window_name = None, wildcard = None, force = False):
+    def activate(self, name=None, class_name=None, window_name=None, wildcard=None, force=False, max=False):
         """Activates a window
         If specifying a window by class/exact name, use class_name and window_name parameters
         If the window name is volatile, use the wildcard option, which accepts a regular expression
@@ -87,7 +89,7 @@ class WindowSwitcher(object):
         elif class_name or window_name:
             self._find_window(class_name, window_name)
         if self._handle:
-            self._set_foreground(force)
+            self._set_foreground(force, max)
             self._add_to_history()
             
     def get_last_window_name(self):
@@ -97,7 +99,7 @@ class WindowSwitcher(object):
     def __exit__(self, type, value, traceback):
         """return foreground lock to initial state and return to initial window"""
         self._handle = self.parent
-        self._set_foreground(False)
+        self._set_foreground(False, False)
         # cleanup for dirty dirty hack
         #win32gui.SystemParametersInfo(win32con.SPI_SETFOREGROUNDLOCKTIMEOUT, self.WindowSwitcher.fg_lock, win32con.SPIF_SENDWININICHANGE | win32con.SPIF_UPDATEINIFILE)
         
