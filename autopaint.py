@@ -9,18 +9,73 @@ import ctypes
 import struct
 import re
 import time
+import sys
 import windowswitcher
+import _winreg
+import Image
+import ImageGrab
+import ImageChops
+from nircmd import screenshot
 from ConfigParser import SafeConfigParser
+
+screenshot = screenshot.screenshot
+
+def get_brightness(p):
+    return (299.0 * p[0] + 587.0 * p[1] + 114.0 * p[2]) / 1000.0
+
+def trim(im):
+    """Removes all whitespace surrounding image"""
+    bg = Image.new(im.mode, im.size, im.getpixel((0,0)))
+    diff = ImageChops.difference(im, bg)
+    diff = ImageChops.add(diff, diff, 2.0, -100)
+    bbox = diff.getbbox()
+    if bbox:
+        return im.crop(bbox)
+
+def to_alpha_black_white(black_img, white_img):
+    """Takes images with white/black background and returns a transparent image"""
+    size = black_img.size
+    black_img = black_img.convert('RGBA')
+    loadedBlack = black_img.load()
+    loadedWhite = white_img.load()
+    for x in range(size[0]):
+        for y in range(size[1]):
+            blackPixel = loadedBlack[x, y]
+            whitePixel = loadedWhite[x, y]
+            loadedBlack[x, y] = (
+                (blackPixel[0] + whitePixel[0]) / 2,
+                (blackPixel[1] + whitePixel[1]) / 2,
+                (blackPixel[2] + whitePixel[2]) / 2,
+                int(255.0 - 255.0 * (get_brightness(whitePixel) - get_brightness(blackPixel)))
+            )
+    return black_img
 
 def send_f5():
     """Sends an F5 to the active window"""
     ctypes.windll.user32.keybd_event(0x74, 0, 0, 0) # F5 down
     ctypes.windll.user32.keybd_event(0x74, 0, 0x0002, 0) # F5 up
+    
+def _send_printscr():
+    """Sends an ALT+PRINTSCR to the active window"""
+    ctypes.windll.user32.keybd_event(0x12, 0, 0, 0) # ALT down
+    ctypes.windll.user32.keybd_event(0x2C, 0, 0, 0) # PRINTSCR down
+    ctypes.windll.user32.keybd_event(0x2C, 0, 0x0002, 0) # PRINTSCR up
+    ctypes.windll.user32.keybd_event(0x12, 0, 0x0002, 0) # ALT up
 
 def hex_to_rgb(i):
     """Takes a hex value and returns a string containing RGB values"""
-    return " ".join(map(str,struct.unpack('BBB',i.decode('hex'))))    
+    return " ".join(map(str,struct.unpack('BBB',i.decode('hex'))))
     
+def read_regkey(k, v):
+	"""Convenience function to read registry data"""
+	return _winreg.QueryValueEx(k, v)[0]
+
+# def screenshot():
+    # """Returns a PIL object of a screenshot of the current active foreground window"""
+    # _send_printscr()
+    # img = ImageGrab.grabclipboard()
+    # return img
+
 
 class PaintSelector(object):
     """An iterable listbox with scrollbar and three buttons to control it"""
@@ -179,9 +234,30 @@ class RootFrame(tk.Frame):
                 self.in_wiki_user.config(state=tk.DISABLED)
                 self.in_wiki_pass.config(state=tk.DISABLED)
 
+            # Get Source SDK directory
+            sdk_dir = os.getenv("sourcesdk")
+            if not sdk_dir:
+                # If for whatever reason the sdk isn't set in PATH, construct a path to it
+                steam_key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, _winreg.KEY_ALL_ACCESS)
+                steam_dir = read_regkey(steam_key, "SteamPath")
+                steam_app_data = os.path.join(steam_dir, "config", "SteamAppData.vdf")
+                with open(steam_app_data, "rb") as vdf_file:
+                    vdf = vdf_file.read()
+                steam_pattern = r'"?AutoLoginUser"?\s+"(.[^\}]+)"'
+                steam_login_regex = re.compile(steam_pattern, re.IGNORECASE)
+                steam_match = steam_login_regex.search(vdf)
+                if steam_match:
+                    sdk_dir = os.path.join(steam_dir, "steamapps", steam_match.group(1), "sourcesdk")
+                else:
+                    raise Exception("Couldn't obtain sdk dir")
+            hlmv_dir = os.path.join(sdk_dir, "bin", "orangebox", "tf", "materials", "hlmv")
+            if not os.path.exists(hlmv_dir):
+                os.makedirs(hlmv_dir)
+            self.config["hlmv"] = hlmv_dir
+
         except Exception, e:
             # Stop here if we can't load the configuration for whatever reason
-            import sys, traceback
+            import traceback
             traceback.print_exc()
             tkMessageBox.showerror("Error", e)
             sys.exit(1)
@@ -234,46 +310,54 @@ class RootFrame(tk.Frame):
             """Replace $color2 {# # #} inside vmt file with value of color, or use $colortint_base"""
             with open(f, "rb") as vmt_file:
                 vmt = vmt_file.read()
-                color2_pattern = r'"?\$color2"?\s+"?\{(.[^\}]+)\}"?'
-                color2_regex = re.compile(color2_pattern, re.IGNORECASE)
-                color2_match = color2_regex.search(vmt)
-                #
-                base_pattern = r'"?\$colortint_base"?\s+"?\{(.[^\}]+)\}"?'
-                base_regex = re.compile(base_pattern, re.IGNORECASE)
-                base_match = base_regex.search(vmt)
-                if base_match and not color2_match:
-                    # Create a $color2 if it doesn't exist
-                    vmt = re.sub(base_pattern, '"$colortint_base" "{%s}"\n\t"$color2" "{%s}"' % (
-                                base_match.group(1),
-                                color or base_match.group(1)),
-                            vmt)
-                elif color2_match:
-                    vmt = re.sub(color2_pattern, '"$color2" "{%s}"' % (color or base_match.group(1)), vmt)
+            color2_pattern = r'"?\$color2"?\s+"?\{(.[^\}]+)\}"?'
+            color2_regex = re.compile(color2_pattern, re.IGNORECASE)
+            color2_match = color2_regex.search(vmt)
+            #
+            base_pattern = r'"?\$colortint_base"?\s+"?\{(.[^\}]+)\}"?'
+            base_regex = re.compile(base_pattern, re.IGNORECASE)
+            base_match = base_regex.search(vmt)
+            if base_match and not color2_match:
+                # Create a $color2 if it doesn't exist
+                vmt = re.sub(base_pattern, '"$colortint_base" "{%s}"\n\t"$color2" "{%s}"' % (
+                            base_match.group(1),
+                            color or base_match.group(1)),
+                        vmt)
+            elif color2_match:
+                vmt = re.sub(color2_pattern, '"$color2" "{%s}"' % (color or base_match.group(1)), vmt)
             with open(f, "wb") as vmt_file:
                 vmt_file.write(vmt)
-                
+
+        def alter_bg(color="255 255 255"):
+            """Modify hlmv's background color, default to white"""
+            bg_vmt = os.path.join(self.config["hlmv"], "background.vmt")
+            vmt_base = '''"UnlitGeneric"\n{\n\t"$color" "{%s}"\n}'''
+            with open(bg_vmt, "w+b") as vmt_file:
+                vmt_file.write(vmt_base % (color))
+
         def on_start_automator():
-            paints = [i.split()[0] for i in sorted(self.red_paintselector)]
+            crop_boundaries = (1, 41, 1278, 743)
+            # paints = [i.split()[0] for i in sorted(self.red_paintselector)]
+            paints = ["141414", "2D2D24"]
+            if not os.path.exists("png"):
+                os.mkdir("png")
+            red_paints_white = {}
+            red_paints_black = {}
             with windowswitcher.WindowSwitcher() as w:
                 w.activate(wildcard=r".*?.mdl", max=True, force=True)
-                time.sleep(3)
-                # for paint in paints:
-                    # write_vmt(self.red_vmt, color=paint)
-                    # time.sleep(1)
-                    # send_f5()
-                    # time.sleep(1)
-            # write_vmt(self.red_vmt)
-            # pass
-            # switch to hlmv
-            # for each paint in red listbox, replace $color2 \
-            # in red vmt with rgb using hex_to_rgb()
-            # repeat with blu vmt
-            # call threaded blender
-            # done
-            # w = windowswitcher.WindowSwitcher()
-            # w.activate(wildcard=r".*?.mdl")
-            # send_f5()
-            # model = w.get_last_window_name()
+                if w.get_last_window_name():
+                    for paint in paints:
+                        write_vmt(self.red_vmt, color=hex_to_rgb(paint))
+                        alter_bg()
+                        send_f5()
+                        time.sleep(3)
+                        red_paints_white[paint] = screenshot().crop(crop_boundaries)
+                        alter_bg(color="0 0 0")
+                        send_f5()
+                        time.sleep(3)
+                        red_paints_black[paint] = screenshot().crop(crop_boundaries)
+            for paint in red_paints_black:
+                to_alpha_black_white(red_paints_black[paint], red_paints_white[paint]).save("png//Item_%s.png" % (paint), "PNG")
 
         # Text labels
         lbl_settings = tk.Label(left_frame, text="Settings")
