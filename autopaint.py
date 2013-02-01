@@ -21,6 +21,7 @@ from ConfigParser import SafeConfigParser
 screenshot = screenshot.screenshot
 
 def get_brightness(p):
+    """CCIR601 RGB -> Luma conversion"""
     return (299.0 * p[0] + 587.0 * p[1] + 114.0 * p[2]) / 1000.0
 
 def trim(im):
@@ -240,6 +241,7 @@ class RootFrame(tk.Frame):
                 # If for whatever reason the sdk isn't set in PATH, construct a path to it
                 steam_key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, _winreg.KEY_ALL_ACCESS)
                 steam_dir = read_regkey(steam_key, "SteamPath")
+                _winreg.CloseKey(steam_key)
                 steam_app_data = os.path.join(steam_dir, "config", "SteamAppData.vdf")
                 with open(steam_app_data, "rb") as vdf_file:
                     vdf = vdf_file.read()
@@ -285,6 +287,8 @@ class RootFrame(tk.Frame):
         """Create the left frame"""
         left_frame = tk.Frame(self)#, background="green")
         left_frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=False, pady=10, padx=10)
+        self.red_vmt = None
+        self.blu_vmt = None
         
         def on_cb_click():
             if self.int_upload_var.get():
@@ -298,13 +302,11 @@ class RootFrame(tk.Frame):
             file = tkFileDialog.askopenfilename(title="Specify RED vmt", filetypes=[("Valve material", "*.vmt")])
             if file:
                 self.red_vmt = file
-                print self.red_vmt
 
         def on_blu_file_select():
             file = tkFileDialog.askopenfilename(title="Specify BLU vmt", filetypes=[("Valve material", "*.vmt")])
             if file:
                 self.blu_vmt = file
-                print self.blu_vmt
                 
         def write_vmt(f, color=None):
             """Replace $color2 {# # #} inside vmt file with value of color, or use $colortint_base"""
@@ -334,30 +336,82 @@ class RootFrame(tk.Frame):
             vmt_base = '''"UnlitGeneric"\n{\n\t"$color" "{%s}"\n}'''
             with open(bg_vmt, "w+b") as vmt_file:
                 vmt_file.write(vmt_base % (color))
+                
+        def _take_image(vmt, interval=2, paint=None, black=False):
+            crop_boundaries = (1, 41, 1278, 743)
+            if black:
+                alter_bg(color="0 0 0")
+                send_f5()
+                time.sleep(interval)
+                return screenshot().crop(crop_boundaries)
+            if paint:
+                write_vmt(vmt, color=hex_to_rgb(paint))
+                alter_bg()
+                send_f5()
+                time.sleep(interval)
+            else:
+                write_vmt(vmt, color=None)
+                alter_bg()
+                send_f5()
+                time.sleep(interval)
+            return screenshot().crop(crop_boundaries)
+                    
+
+        def take_images(vmt, paints):
+            """Take painted item images"""
+            white, black = {}, {}
+            for paint in paints:
+                white[paint] = _take_image(vmt, paint=paint)
+                black[paint] = _take_image(vmt, black=True)
+            # Take stock item image
+            white["UNPAINTED"] = _take_image(vmt, paint=None)
+            black["UNPAINTED"] = _take_image(vmt, black=True)
+            return white, black
 
         def on_start_automator():
-            crop_boundaries = (1, 41, 1278, 743)
-            # paints = [i.split()[0] for i in sorted(self.red_paintselector)]
-            paints = ["141414", "2D2D24"]
-            if not os.path.exists("png"):
-                os.mkdir("png")
-            red_paints_white = {}
-            red_paints_black = {}
-            with windowswitcher.WindowSwitcher() as w:
-                w.activate(wildcard=r".*?.mdl", max=True, force=True)
-                if w.get_last_window_name():
-                    for paint in paints:
-                        write_vmt(self.red_vmt, color=hex_to_rgb(paint))
-                        alter_bg()
-                        send_f5()
-                        time.sleep(3)
-                        red_paints_white[paint] = screenshot().crop(crop_boundaries)
-                        alter_bg(color="0 0 0")
-                        send_f5()
-                        time.sleep(3)
-                        red_paints_black[paint] = screenshot().crop(crop_boundaries)
-            for paint in red_paints_black:
-                to_alpha_black_white(red_paints_black[paint], red_paints_white[paint]).save("png//Item_%s.png" % (paint), "PNG")
+            if self.red_vmt:
+                # red_paints = [i.split()[0] for i in sorted(self.red_paintselector)]
+                # blu_paints = [i.split()[0] for i in sorted(self.blu_paintselector)]
+                red_paints = ["141414", "2D2D24"]
+                blu_paints = ["18233D", "256D8D"]
+                if not os.path.exists("png"):
+                    os.mkdir("png")
+                with windowswitcher.WindowSwitcher() as w:
+                    w.activate(wildcard=r".*?.mdl", max=True, force=True)
+                    if w.get_last_window_name():
+                        paints_white, paints_black = take_images(self.red_vmt, red_paints)
+                        if self.blu_vmt:
+                            # Final filenames will be different if blu vmt exists
+                            paints_white["RED"] = paints_white["UNPAINTED"]
+                            paints_black["RED"] = paints_black["UNPAINTED"]
+                            del(paints_white["UNPAINTED"], paints_black["UNPAINTED"])
+                            # Replace red vmt with blu
+                            os.rename(self.red_vmt, "%s~" % (self.red_vmt))
+                            os.rename(self.blu_vmt, self.red_vmt)
+                            blu_paints_white, blu_paints_black = take_images(self.red_vmt, blu_paints)
+                            paints_white.update(blu_paints_white)
+                            paints_black.update(blu_paints_black)
+                            paints_white["BLU"] = paints_white["UNPAINTED"]
+                            paints_black["BLU"] = paints_black["UNPAINTED"]
+                            del(paints_white["UNPAINTED"], paints_black["UNPAINTED"])
+                            del(blu_paints_white, blu_paints_black)
+                            # Revert rename
+                            os.rename(self.red_vmt, self.blu_vmt)
+                            os.rename("%s~" % (self.red_vmt), self.red_vmt)
+                for paint in paints_black:
+                    final_image = trim(to_alpha_black_white(paints_black[paint], paints_white[paint]))
+                    # BUG: Needs to run twice here to have an effect, but only once if trim() is used outside of program
+                    final_image = trim(final_image)
+                    if len(in_style.get()) > 0:
+                        if paint in ["RED", "BLU"]:
+                            final_image.save("png//%s_%s_%s.png" % (paint, in_item.get(), in_style.get()), "PNG")
+                        else:
+                            final_image.save("png//%s_%s_%s.png" % (in_item.get(), paint, in_style.get()), "PNG")
+                    else:
+                        if paint in ["RED", "BLU"]:
+                            final_image.save("png//%s_%s.png" % (paint, in_item.get()), "PNG")
+                        else:
+                            final_image.save("png//%s_%s.png" % (in_item.get(), paint), "PNG")
 
         # Text labels
         lbl_settings = tk.Label(left_frame, text="Settings")
