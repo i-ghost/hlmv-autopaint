@@ -6,6 +6,7 @@ import tkMessageBox
 import tkColorChooser
 import tkFileDialog
 import ctypes
+import shutil
 import struct
 import re
 import time
@@ -235,27 +236,25 @@ class RootFrame(tk.Frame):
                 self.in_wiki_user.config(state=tk.DISABLED)
                 self.in_wiki_pass.config(state=tk.DISABLED)
 
-            # Get Source SDK directory
-            sdk_dir = os.getenv("sourcesdk")
-            if not sdk_dir:
-                # If for whatever reason the sdk isn't set in PATH, construct a path to it
-                steam_key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, _winreg.KEY_ALL_ACCESS)
-                steam_dir = read_regkey(steam_key, "SteamPath")
-                _winreg.CloseKey(steam_key)
-                steam_app_data = os.path.join(steam_dir, "config", "SteamAppData.vdf")
-                with open(steam_app_data, "rb") as vdf_file:
-                    vdf = vdf_file.read()
-                steam_pattern = r'"?AutoLoginUser"?\s+"(.[^\}]+)"'
-                steam_login_regex = re.compile(steam_pattern, re.IGNORECASE)
-                steam_match = steam_login_regex.search(vdf)
-                if steam_match:
-                    sdk_dir = os.path.join(steam_dir, "steamapps", steam_match.group(1), "sourcesdk")
-                else:
-                    raise Exception("Couldn't obtain sdk dir")
-            hlmv_dir = os.path.join(sdk_dir, "bin", "orangebox", "tf", "materials", "hlmv")
+            # Construct a path to the SteamPipe TF2 directory
+            # Steam directory from registry
+            steam_key = _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, _winreg.KEY_ALL_ACCESS)
+            steam_dir = read_regkey(steam_key, "SteamPath")
+            _winreg.CloseKey(steam_key)
+            tf2_dir = os.path.join(steam_dir, "steamapps", "common", "Team Fortress 2", "tf")
+            hlmv_dir = os.path.join(tf2_dir, "custom", "hlmv autopaint", "materials", "hlmv")
             if not os.path.exists(hlmv_dir):
                 os.makedirs(hlmv_dir)
             self.config["hlmv"] = hlmv_dir
+            self.config["materials"] = os.path.join(hlmv_dir, os.pardir, "models", "player", "items")
+            if not os.path.exists(self.config["materials"]):
+                os.makedirs(self.config["materials"])
+            # Remove fire overlay
+            tiledfire_dir = os.path.join(self.config["hlmv"], os.pardir, "effects", "tiledfire")
+            if not os.path.exists(tiledfire_dir):
+                os.makedirs(tiledfire_dir)
+            # Contrary to standard behaviour, creating a VMT with the same name does NOT override the VTF here.
+            shutil.copy("resources/fireLayeredSlowTiled512.vtf", tiledfire_dir)
 
         except Exception, e:
             # Stop here if we can't load the configuration for whatever reason
@@ -291,20 +290,16 @@ class RootFrame(tk.Frame):
         self.blu_vmt = None
         
         def on_cb_click():
-            if self.int_upload_var.get():
-                self.in_wiki_user.config(state=tk.NORMAL)
-                self.in_wiki_pass.config(state=tk.NORMAL)
-            else:
-                self.in_wiki_user.config(state=tk.DISABLED)
-                self.in_wiki_pass.config(state=tk.DISABLED)
+            self.in_wiki_user.config(state=tk.NORMAL) if self.int_upload_var.get() else self.in_wiki_user.config(state=tk.DISABLED)
+            self.in_wiki_pass.config(state=tk.NORMAL) if self.int_upload_var.get() else self.in_wiki_pass.config(state=tk.DISABLED)
 
         def on_red_file_select():
-            file = tkFileDialog.askopenfilename(title="Specify RED vmt", filetypes=[("Valve material", "*.vmt")])
+            file = tkFileDialog.askopenfilename(title="Specify RED vmt", filetypes=[("Valve material", "*.vmt")], initialdir=self.config["materials"])
             if file:
                 self.red_vmt = file
 
         def on_blu_file_select():
-            file = tkFileDialog.askopenfilename(title="Specify BLU vmt", filetypes=[("Valve material", "*.vmt")])
+            file = tkFileDialog.askopenfilename(title="Specify BLU vmt", filetypes=[("Valve material", "*.vmt")], initialdir=self.config["materials"])
             if file:
                 self.blu_vmt = file
                 
